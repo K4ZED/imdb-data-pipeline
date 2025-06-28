@@ -1,0 +1,65 @@
+# Nama workflow yang akan muncul di tab Actions
+name: Run IMDb Data Pipeline
+
+# Pemicu (Trigger) untuk menjalankan workflow ini
+on:
+  # 1. Menjalankan secara manual dari tab Actions
+  workflow_dispatch:
+  # 2. Menjalankan sesuai jadwal
+  schedule:
+    # Menjalankan setiap hari Minggu jam 01:00 UTC (sekitar jam 8 pagi WIB)
+    - cron: '0 1 * * 0'
+
+# Pekerjaan yang akan dilakukan
+jobs:
+  run-python-script:
+    # Menggunakan mesin virtual Ubuntu terbaru dari GitHub
+    runs-on: ubuntu-latest
+    # Menetapkan batas waktu maksimum 6 jam untuk keseluruhan job
+    timeout-minutes: 360
+
+    steps:
+      # Langkah 1: Mengunduh kode dari repositori Anda ke mesin virtual
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Langkah 2: Menyiapkan lingkungan Python versi 3.11
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Langkah 3: Mengunduh file-file data IMDb mentah
+      # Ini akan membuat folder 'imdb-data' dan mengisinya
+      - name: Download IMDb Datasets
+        run: |
+          mkdir -p imdb-data
+          cd imdb-data
+          curl -O https://datasets.imdbws.com/name.basics.tsv.gz
+          curl -O https://datasets.imdbws.com/title.akas.tsv.gz
+          curl -O https://datasets.imdbws.com/title.basics.tsv.gz
+          curl -O https://datasets.imdbws.com/title.crew.tsv.gz
+          curl -O https://datasets.imdbws.com/title.episode.tsv.gz
+          curl -O https://datasets.imdbws.com/title.principals.tsv.gz
+          curl -O https://datasets.imdbws.com/title.ratings.tsv.gz
+
+          echo "Decompressing files..."
+          gunzip *.gz
+          echo "Download and decompression complete."
+
+      # Langkah 4: Menginstal semua library Python yang dibutuhkan
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      # Langkah 5: Menjalankan skrip Python utama
+      - name: Run Data Processing Script
+        # Mengatur environment variables dari GitHub Secrets
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          # Menunjuk ke folder tempat kita mengunduh data
+          DATA_PATH: ./imdb-data
+        run: python main.py
